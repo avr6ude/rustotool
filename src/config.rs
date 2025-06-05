@@ -13,6 +13,12 @@ pub struct GPTConfig {
 pub struct GameConfig {
     #[serde(rename = "FEED_DELAY")]
     pub feed_delay: u64,
+    #[serde(rename = "BASE_GROWTH")]
+    pub base_growth: f64,
+    #[serde(rename = "RANK_FACTOR")]
+    pub rank_factor: f64,
+    #[serde(rename = "WEIGHT_FACTOR")]
+    pub weight_factor: f64,
     #[serde(rename = "SALO_DELAY")]
     pub salo_delay: u64,
     #[serde(rename = "MAX_ITEMS")]
@@ -48,13 +54,16 @@ impl Config {
                     llm_api_token: std::env::var("LLM_API_TOKEN").unwrap_or_default(),
                 },
                 game: GameConfig {
+                    base_growth: 0.5,
+                    rank_factor: 0.5,
+                    weight_factor: 0.5,
                     feed_delay: 4,
                     salo_delay: 8,
                     max_items: 15,
                     base_pills_chance: 0.33,
                     base_pills_chance_grow: 0.75,
                 },
-                database_url: std::env::var("DATABASE_URL").ok(),
+                database_url: std::env::var("dat").ok(),
             }
         })
     }

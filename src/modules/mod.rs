@@ -2,6 +2,7 @@ use crate::database::Database;
 use async_trait::async_trait;
 use std::collections::HashMap;
 use teloxide::{prelude::*, types::Message};
+use crate::config::Config;
 
 #[async_trait]
 pub trait BotModule: Send + Sync {
@@ -14,12 +15,14 @@ pub trait BotModule: Send + Sync {
         command: &str,
         args: Vec<&str>,
         db: &Database,
+        config: &Config,
     ) -> ResponseResult<()>;
     async fn handle_message(
         &self,
         _bot: Bot,
         _msg: Message,
         _db: &Database,
+        _config: &Config
     ) -> ResponseResult<bool> {
         Ok(false)
     }
@@ -48,11 +51,12 @@ impl ModuleManager {
         command: &str,
         args: Vec<&str>,
         db: &Database,
+        config: &Config
     ) -> ResponseResult<bool> {
         for module in self.modules.values() {
             if module.commands().iter().any(|(cmd, _)| *cmd == command) {
                 module
-                    .handle_command(bot.clone(), msg.clone(), command, args.clone(), db)
+                    .handle_command(bot.clone(), msg.clone(), command, args.clone(), db, config)
                     .await?;
                 return Ok(true);
             }
@@ -65,9 +69,10 @@ impl ModuleManager {
         bot: Bot,
         msg: Message,
         db: &Database,
+        config: &Config
     ) -> ResponseResult<()> {
         for module in self.modules.values() {
-            if module.handle_message(bot.clone(), msg.clone(), db).await? {
+            if module.handle_message(bot.clone(), msg.clone(), db, config).await? {
                 break; // Stop at first module that handles the message
             }
         }

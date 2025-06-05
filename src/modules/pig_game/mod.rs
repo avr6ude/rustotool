@@ -1,14 +1,42 @@
 use crate::database::{Database, Pig};
 use crate::modules::BotModule;
+use crate::config::{Config, GameConfig};
 use async_trait::async_trait;
-use rand::prelude::*;
+use rand::{prelude::*};
 use teloxide::{prelude::*, types::Message};
+
 
 pub struct PigGameModule;
 
 impl PigGameModule {
     pub fn new() -> Self {
         Self
+    }
+
+    fn calculate_balanced_grow_range(&self, score: f64, rank: i32, total_players: i32, config: &GameConfig) -> (i32, i32) {
+        let base_growth = config.base_growth; // Base growth amount
+        let rank_factor = config.rank_factor; // How much rank affects growth (0.0 to 1.0)
+        let weight_factor = config.weight_factor; // How much current weight reduces growth
+
+        // Normalize rank (1st place = 1.0, last place = 0.0)
+        let rank_normalized = if total_players > 1 {
+            1.0 - ((rank - 1) as f64 / (total_players - 1) as f64)
+        } else {
+            0.5 // Solo player gets neutral
+        };
+
+        // Weight penalty (heavier pigs grow slower)
+        let weight_penalty = score * weight_factor;
+
+        // Calculate growth range
+        let rank_bonus = rank_factor * rank_normalized * base_growth;
+        let adjusted_growth = base_growth + rank_bonus - weight_penalty;
+
+        // Ensure minimum viable range
+        let min_growth = (adjusted_growth * -0.4).max(-10.0); // Max 40% loss, cap at -10
+        let max_growth = (adjusted_growth * 1.2).max(1.0);    // 120% gain, minimum +1
+
+        (min_growth.floor() as i32, max_growth.floor() as i32)
     }
 
     fn generate_default_pig_name(&self) -> String {
@@ -42,7 +70,7 @@ impl PigGameModule {
             id: 0, // Will be set by database
             chat_id,
             user_id,
-            weight: 10, // Starting weight
+            weight: 0,
             name: pig_name.to_string(),
             last_feed: 0.0,
             last_salo: 0.0,
@@ -53,7 +81,7 @@ impl PigGameModule {
             pigsty: 0,
             vetclinic: 0,
             vet_last_pickup: 0.0,
-            last_weight: 10,
+            last_weight: 0,
             avatar_url: None,
             biolab: 0,
             butchery: 0,
@@ -66,17 +94,44 @@ impl PigGameModule {
         db.create_pig(&new_pig).await
     }
 
-    async fn feed_pig(&self, pig: &mut Pig, db: &Database) -> Result<String, sqlx::Error> {
+    async fn feed_pig(&self, pig: &mut Pig, db: &Database, config: &Config) -> Result<String, sqlx::Error> {
         let current_time = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .unwrap()
             .as_secs_f64();
 
         pig.last_feed = current_time;
-        pig.weight += 5; // Simple feeding logic
+
+        let total_players = db.get_chat_total_players(pig.chat_id).await?;
+        let current_rank = db.get_pig_rank(pig.chat_id, pig.user_id).await?.unwrap_or(1);
+        let score = pig.weight as f64;
+        let (min_grow, max_grow) = self.calculate_balanced_grow_range(score, current_rank, total_players, &config.game);
+
+
+
+        let growth = if min_grow == max_grow {
+            min_grow
+        } else {
+            let range = (max_grow - min_grow + 1) as u32;
+            let random_offset = rand::random::<u32>() % range;
+            min_grow + random_offset as i32
+        };
+
+        pig.weight = (pig.weight + growth).max(1);
 
         db.update_pig(pig).await?;
-        Ok(format!("🐷 {} съел корм! Вес: {}", pig.name, pig.weight))
+
+        let growth_text = if growth > 0 {
+            format!("поправился на {} кг", growth)
+        } else if growth < 0 {
+            format!("уменьшился на {} кг", -growth)
+        } else {
+            format!("обосрался и нихуя не прибавил")
+        };
+        Ok(format!("🐖 Ваш {} {} \n\
+                    💪 Теперь он весит {} кг.\n
+                    ",
+                pig.name, growth_text, pig.weight))
     }
 }
 
@@ -89,8 +144,8 @@ impl BotModule for PigGameModule {
     fn commands(&self) -> Vec<(&'static str, &'static str)> {
         vec![
             ("pig", "Создать новую свинью"),
-            ("feed", "Покормить свинью"),
-            ("mypig", "Посмотреть информацию о своей свинье"),
+            ("grow", "Покормить свинью"),
+            ("my", "Посмотреть информацию о своей свинье"),
             ("pigstats", "Посмотреть статистику свиней"),
         ]
     }
@@ -102,6 +157,7 @@ impl BotModule for PigGameModule {
         command: &str,
         args: Vec<&str>,
         db: &Database,
+        config: &Config,
     ) -> ResponseResult<()> {
         let chat_id = msg.chat.id.0;
         let user_id = msg.from.as_ref().map(|u| u.id.0 as i64).unwrap_or(0);
@@ -160,31 +216,56 @@ impl BotModule for PigGameModule {
                 }
             }
 
-            "feed" => match db.get_pig(chat_id, user_id).await {
-                Ok(Some(mut pig)) => match self.feed_pig(&mut pig, db).await {
-                    Ok(message) => {
-                        bot.send_message(msg.chat.id, message).await?;
+
+            "grow" => {
+                let pig_name = if args.is_empty() {
+                    self.generate_default_pig_name()
+                } else {
+                    args.join(" ")
+                };
+
+                match db.get_pig(chat_id, user_id).await {
+                    Ok(Some(mut pig)) => match self.feed_pig(&mut pig, db, config).await {
+                        Ok(message) => {
+                            bot.send_message(msg.chat.id, message).await?;
+                        }
+                        Err(e) => {
+                            log::error!("Failed to feed pig: {}", e);
+                            bot.send_message(msg.chat.id, "Ошибка при кормлении свиньи")
+                                .await?;
+                        }
+                    },
+                    Ok(None) => {
+                        match self.create_new_pig(chat_id, user_id, username, &pig_name, db).await {
+                            Ok(mut pig) => {
+
+
+                                match self.feed_pig(&mut pig, db, config).await {
+                                    Ok(message) => {
+                                        bot.send_message(msg.chat.id, message).await?;
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to feed pig: {}", e);
+                                        bot.send_message(msg.chat.id, "Ошибка при кормлении свиньи")
+                                            .await?;
+                                    }
+                                };
+                            }
+                            Err(e) => {
+                                log::error!("Failed to create pig: {}", e);
+                                bot.send_message(msg.chat.id, "Ошибка при создании свиньи")
+                                    .await?;
+                            }
+                        }
                     }
                     Err(e) => {
-                        log::error!("Failed to feed pig: {}", e);
-                        bot.send_message(msg.chat.id, "Ошибка при кормлении свиньи")
-                            .await?;
+                        log::error!("Database error: {}", e);
+                        bot.send_message(msg.chat.id, "Ошибка базы данных").await?;
                     }
-                },
-                Ok(None) => {
-                    bot.send_message(
-                        msg.chat.id,
-                        "У вас нет свиньи! Создайте её командой /pig <имя>",
-                    )
-                    .await?;
                 }
-                Err(e) => {
-                    log::error!("Database error: {}", e);
-                    bot.send_message(msg.chat.id, "Ошибка базы данных").await?;
-                }
-            },
+            }
 
-            "mypig" => match db.get_pig(chat_id, user_id).await {
+            "my" => match db.get_pig(chat_id, user_id).await {
                 Ok(Some(pig)) => {
                     let status = if pig.poisoned {
                         "🤢 Отравлена"

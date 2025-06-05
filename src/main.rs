@@ -16,10 +16,11 @@ async fn main() {
     let config = Config::load_or_default();
     log::info!("Config loaded: {:?}", config);
 
+
     let database_url = config
-        .database_url
-        .or_else(|| std::env::var("DATABASE_URL").ok())
-        .expect("DATABASE_URL not set in config or environment");
+        .database_url.clone()
+        .or_else(|| std::env::var("database_url").ok())
+        .expect("database_url not set in config or environment");
 
     let db = Arc::new(
         Database::connect(&database_url)
@@ -35,13 +36,15 @@ async fn main() {
     module_manager.register_module(Box::new(PigGameModule::new()));
     let module_manager = Arc::new(module_manager);
 
+    let config = Arc::new(config);
+
     let token = std::env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
     let bot = Bot::new(token);
 
     let handler = Update::filter_message().endpoint(handle_message);
 
     Dispatcher::builder(bot, handler)
-        .dependencies(dptree::deps![module_manager, db])
+        .dependencies(dptree::deps![module_manager, db, config])
         .enable_ctrlc_handler()
         .build()
         .dispatch()
@@ -53,6 +56,7 @@ async fn handle_message(
     msg: Message,
     module_manager: Arc<ModuleManager>,
     db: Arc<Database>,
+    config: Arc<Config>
 ) -> ResponseResult<()> {
     if let Some(text) = msg.text() {
         if text.starts_with('/') {
@@ -77,7 +81,7 @@ async fn handle_message(
                     }
                     _ => {
                         if module_manager
-                            .handle_command(bot.clone(), msg.clone(), command, args, &db)
+                            .handle_command(bot.clone(), msg.clone(), command, args, &db, &config)
                             .await?
                         {
                             return Ok(());
@@ -88,6 +92,6 @@ async fn handle_message(
         }
     }
 
-    module_manager.handle_message(bot, msg, &db).await?;
+    module_manager.handle_message(bot, msg, &db, &config).await?;
     Ok(())
 }
