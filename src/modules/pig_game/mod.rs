@@ -13,30 +13,25 @@ impl PigGameModule {
         Self
     }
 
-    fn calculate_balanced_grow_range(&self, score: f64, rank: i32, total_players: i32, config: &GameConfig) -> (i32, i32) {
-        let base_growth = config.base_growth; // Base growth amount
-        let rank_factor = config.rank_factor; // How much rank affects growth (0.0 to 1.0)
-        let weight_factor = config.weight_factor; // How much current weight reduces growth
+    fn calculate_grow_range(&self, score: f64, rank: i32, total_players: i32, config: &GameConfig) -> (i32, i32) {
+        let loss_base = config.base_growth;
+        let gain_base = config.weight_factor;
+        let loss_coefficient = config.rank_factor;
+        let gain_coefficient = 1.0;
 
-        // Normalize rank (1st place = 1.0, last place = 0.0)
-        let rank_normalized = if total_players > 1 {
-            1.0 - ((rank - 1) as f64 / (total_players - 1) as f64)
-        } else {
-            0.5 // Solo player gets neutral
-        };
+        // Calculate rank percentage
+        let rank_percentage = rank as f64 / total_players as f64;
 
-        // Weight penalty (heavier pigs grow slower)
-        let weight_penalty = score * weight_factor;
+        // Determine adjustment factor based on rank
+        let loss_modifier = 1.0 - rank_percentage;
+        let gain_modifier = 1.0 / (1.0 - rank_percentage + 1.0);
 
-        // Calculate growth range
-        let rank_bonus = rank_factor * rank_normalized * base_growth;
-        let adjusted_growth = base_growth + rank_bonus - weight_penalty;
+        // Calculate adjusted range for X and Y
+        let max_loss = ((loss_base * score) * (loss_coefficient * loss_modifier)) + 15.0;
+        let max_gain = (gain_base * score) * (2.0 * gain_coefficient * gain_modifier) + 35.0;
 
-        // Ensure minimum viable range
-        let min_growth = (adjusted_growth * -0.4).max(-10.0); // Max 40% loss, cap at -10
-        let max_growth = (adjusted_growth * 1.2).max(1.0);    // 120% gain, minimum +1
-
-        (min_growth.floor() as i32, max_growth.floor() as i32)
+        // Return floor values
+        (-max_loss.floor() as i32, max_gain.floor() as i32)
     }
 
     fn generate_default_pig_name(&self) -> String {
@@ -54,7 +49,9 @@ impl PigGameModule {
         ];
 
         let mut rng = rand::rng();
-        let random_name = names[rng.random_range(0..names.len())];
+        let random_index = rng.random_range(0..names.len());
+        let random_name = names[random_index];
+
         format!("{}", random_name)
     }
 
@@ -105,9 +102,7 @@ impl PigGameModule {
         let total_players = db.get_chat_total_players(pig.chat_id).await?;
         let current_rank = db.get_pig_rank(pig.chat_id, pig.user_id).await?.unwrap_or(1);
         let score = pig.weight as f64;
-        let (min_grow, max_grow) = self.calculate_balanced_grow_range(score, current_rank, total_players, &config.game);
-
-
+        let (min_grow, max_grow) = self.calculate_grow_range(score, current_rank, total_players, &config.game);
 
         let growth = if min_grow == max_grow {
             min_grow

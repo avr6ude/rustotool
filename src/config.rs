@@ -54,16 +54,16 @@ impl Config {
                     llm_api_token: std::env::var("LLM_API_TOKEN").unwrap_or_default(),
                 },
                 game: GameConfig {
-                    base_growth: 0.5,
+                    base_growth: 0.1,
                     rank_factor: 0.5,
-                    weight_factor: 0.5,
+                    weight_factor: 0.05,
                     feed_delay: 4,
                     salo_delay: 8,
                     max_items: 15,
                     base_pills_chance: 0.33,
                     base_pills_chance_grow: 0.75,
                 },
-                database_url: std::env::var("dat").ok(),
+                database_url: std::env::var("database_url").ok(),
             }
         })
     }
