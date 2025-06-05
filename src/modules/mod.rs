@@ -93,3 +93,4 @@ impl ModuleManager {
 }
 
 pub mod pig_game;
+pub mod powerful_nahruk;

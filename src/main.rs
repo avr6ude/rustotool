@@ -6,7 +6,7 @@ mod database;
 mod modules;
 use config::Config;
 use database::Database;
-use modules::{ModuleManager, pig_game::PigGameModule};
+use modules::{ModuleManager, pig_game::PigGameModule, powerful_nahruk::PowerfulNahrukModule};
 
 #[tokio::main]
 async fn main() {
@@ -34,6 +34,7 @@ async fn main() {
 
     let mut module_manager = ModuleManager::new();
     module_manager.register_module(Box::new(PigGameModule::new()));
+    module_manager.register_module(Box::new(PowerfulNahrukModule::new()));
     let module_manager = Arc::new(module_manager);
 
     let config = Arc::new(config);
