@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::database::Database;
 use crate::modules::BotModule;
 use async_trait::async_trait;
@@ -37,11 +38,12 @@ impl BotModule for PowerfulNahrukModule {
     _command: &str,
     _args: Vec<&str>,
     _db: &Database,
+    _config: &Config,
   ) -> ResponseResult<()> {
     return Ok(());
   }
 
-  async fn handle_message(&self, bot: Bot, msg: Message, _db: &Database) -> ResponseResult<bool> {
+  async fn handle_message(&self, bot: Bot, msg: Message, _db: &Database, _config: &Config,) -> ResponseResult<bool> {
     let nahruk = self.check_nahruk(&msg.text().unwrap_or("")).await;
     if !nahruk.is_empty() {
       bot
