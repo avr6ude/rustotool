@@ -14,4 +14,4 @@ game:
   BASE_PILLS_CHANCE: 0.33
   BASE_PILLS_CHANCE_GROW: 0.75
 
-database_url: "postgres://avrdude@localhost:5432/botdb"
+database_url: "postgresql://avrdude:hNmfrTtKH2BBvqfsq7Bs@94.130.172.156:5432/botdb"

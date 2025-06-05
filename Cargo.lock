@@ -2989,6 +2989,7 @@ dependencies = [
  "sqlx",
  "teloxide",
  "tokio",
+ "unicode-segmentation",
  "uuid",
 ]
 
