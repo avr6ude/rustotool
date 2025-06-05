@@ -2,29 +2,32 @@ use crate::config::Config;
 use crate::database::Database;
 use crate::modules::BotModule;
 use async_trait::async_trait;
-use teloxide::{prelude::*, sugar::request::RequestReplyExt, types::Message};
+use rand::prelude::*;
+use teloxide::types::ReactionType;
+use teloxide::{prelude::*, types::Message};
 
-pub struct PowerfulNahrukModule;
+pub struct ReactionsModule;
 
-impl PowerfulNahrukModule {
+impl ReactionsModule {
   pub fn new() -> Self {
     Self
   }
 
-  async fn check_nahruk(&self, msg: &str) -> String {
-    let trigger_words = vec!["украина", "хохол", "хохл"];
-    if trigger_words.iter().any(|&word| msg.contains(word)) {
-      "Ваш нахрюк заблокирован ❌".to_string()
+  fn react_to_message(&self) -> &'static str {
+    let mut rng = rand::rng();
+    let reactions = vec!["🤡", "💩", "🤣", "💊", "😁", "😨"];
+    if rand::random::<u8>() < 25 {
+      reactions[rng.random_range(0..reactions.len())]
     } else {
-      String::new()
+      ""
     }
   }
 }
 
 #[async_trait]
-impl BotModule for PowerfulNahrukModule {
+impl BotModule for ReactionsModule {
   fn name(&self) -> &'static str {
-    "Powerfull Nahruk"
+    "Reactions Module"
   }
 
   fn commands(&self) -> Vec<(&'static str, &'static str)> {
@@ -50,13 +53,15 @@ impl BotModule for PowerfulNahrukModule {
     _db: &Database,
     _config: &Config,
   ) -> ResponseResult<bool> {
-    let nahruk = self.check_nahruk(&msg.text().unwrap_or("")).await;
-    if !nahruk.is_empty() {
+    let reaction = self.react_to_message();
+    if !reaction.is_empty() {
       bot
-        .send_message(msg.chat.id, nahruk)
-        .reply_to(msg.id)
+        .set_message_reaction(msg.chat.id, msg.id)
+        .reaction(vec![ReactionType::Emoji {
+          emoji: reaction.to_string(),
+        }])
         .await?;
-      Ok(true)
+      return Ok(true);
     } else {
       Ok(false)
     }
