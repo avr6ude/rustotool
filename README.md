@@ -42,7 +42,7 @@ A modular Telegram bot built with Rust, featuring a pig farming game and extensi
   ```
 3. **Configure environment variables**
    ```bash
-      export TELOXIDE_TOKEN="your_bot_token_here"
+      export TELEGRAM_TOKEN="your_bot_token_here"
    ```
 4. **Update configuration**
 ```yaml

@@ -35,7 +35,7 @@ async fn main() {
     module_manager.register_module(Box::new(PigGameModule::new()));
     let module_manager = Arc::new(module_manager);
 
-    let token = std::env::var("TELOXIDE_TOKEN").expect("TELOXIDE_TOKEN not set");
+    let token = std::env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
     let bot = Bot::new(token);
 
     let handler = Update::filter_message().endpoint(handle_message);
