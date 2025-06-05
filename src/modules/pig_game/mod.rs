@@ -3,7 +3,7 @@ use crate::modules::BotModule;
 use crate::config::{Config, GameConfig};
 use async_trait::async_trait;
 use rand::{prelude::*};
-use teloxide::{prelude::*, types::Message};
+use teloxide::{prelude::*, sugar::request::RequestReplyExt, types::Message};
 
 
 pub struct PigGameModule;
@@ -142,6 +142,8 @@ impl BotModule for PigGameModule {
             ("grow", "Покормить свинью"),
             ("my", "Посмотреть информацию о своей свинье"),
             ("pigstats", "Посмотреть статистику свиней"),
+            ("top", "Посмотреть топ свиней по весу"),
+            ("name", "Поменять имя")
         ]
     }
 
@@ -211,8 +213,7 @@ impl BotModule for PigGameModule {
                 }
             }
 
-
-            "grow" => {
+            "grow" | "гров" => {
                 let pig_name = if args.is_empty() {
                     self.generate_default_pig_name()
                 } else {
@@ -262,26 +263,22 @@ impl BotModule for PigGameModule {
 
             "my" => match db.get_pig(chat_id, user_id).await {
                 Ok(Some(pig)) => {
-                    let status = if pig.poisoned {
-                        "🤢 Отравлена"
-                    } else {
-                        "😊 Здорова"
-                    };
+                    let position = match db.get_pig_rank(chat_id, user_id).await {
+                        Ok(rank) => rank,
+                        Err(e) => {
+                            log::error!("Database error: {}", e);
+                            None
+                        }}.unwrap_or(0);
+
+
                     let message = format!(
-                        "🐷 Ваша свинья: {}\n\
-                             💪 Вес: {}\n\
-                             🏠 Сарай: {}\n\
-                             🐖 Свинарник: {}\n\
-                             🏥 Ветклиника: {}\n\
-                             🧪 Таблетки: {}\n\
-                             📊 Статус: {}",
+                        "🐖 Ваш {} весит: {} кг\n\
+                        📊 Место в топе: {}\n\
+                        ",
                         pig.name,
                         pig.weight,
-                        pig.barn,
-                        pig.pigsty,
-                        pig.vetclinic,
-                        pig.pills,
-                        status
+                        position,
+
                     );
                     bot.send_message(msg.chat.id, message).await?;
                 }
@@ -296,7 +293,7 @@ impl BotModule for PigGameModule {
                     log::error!("Database error: {}", e);
                     bot.send_message(msg.chat.id, "Ошибка базы данных").await?;
                 }
-            },
+            }
 
             "pigstats" => {
                 // Find pig by name if args provided, otherwise show user's pig
@@ -344,6 +341,91 @@ impl BotModule for PigGameModule {
                         Err(e) => {
                             log::error!("Database error: {}", e);
                             bot.send_message(msg.chat.id, "Ошибка базы данных").await?;
+                        }
+                    }
+                }
+            }
+
+            "top" => {
+                match db.get_chat_pigs_ranked(chat_id).await {
+                    Ok(pigs) => {
+                        if pigs.is_empty() {
+                            bot.send_message(msg.chat.id, "В этом чате пока нет свиней 🐖").await?;
+                        } else {
+                            let top_pigs: Vec<String> = pigs
+                                .iter()
+                                .take(5)
+                                .enumerate()
+                                .map(|(i, pig)| {
+                                    let position = i + 1;
+                                    let medal = match position {
+                                        1 => "🥇",
+                                        2 => "🥈",
+                                        3 => "🥉",
+                                        _ => "🏅",
+                                    };
+                                    format!("{} {}. {} - {} кг (владелец: {}) 🐖", medal, position, pig.name, pig.weight, pig.owner_name)
+                                })
+                                .collect();
+
+                            let message = format!("🏆 Топ 5 свиней в чате:\n{}", top_pigs.join("\n"));
+                            bot.send_message(msg.chat.id, message).await?;
+                        }
+                    }
+                    Err(e) => {
+                        log::error!("Database error: {}", e);
+                        bot.send_message(msg.chat.id, "Ошибка базы данных").await?;
+                    }
+                }
+            }
+
+            "name" => {
+                if args.is_empty() {
+                    bot.send_message(msg.chat.id, "Введи имя, еблан").reply_to(msg.id).await?;
+                } else {
+                    let new_name = args.join(" ");
+                    if new_name.len() > 32 {
+                        bot.send_message(msg.chat.id, "У тебя хряк весит меньше, чем твое имя. Придумай что-то короче 32 буковок, блядина.")
+                            .reply_to(msg.id)
+                            .await?;
+                    } else {
+                        match db.get_pig(chat_id, user_id).await {
+                            Ok(Some(_)) => {
+                                match db.update_pig_name(chat_id, user_id, &new_name).await {
+                                    Ok(_) => {
+                                        bot.send_message(msg.chat.id,
+                                            format!("Теперь вашего хряка зовут {}", new_name))
+                                        .reply_to(msg.id)
+                                        .await?;
+
+                                    }
+                                    Err(e) => {
+                                        log::error!("Database error: {}", e);
+                                        bot.send_message(msg.chat.id, "Какая-то хуйня случилась. Пиши админу, блять").await?;
+                                    }
+                                }
+                            }
+                            Ok(None) => {
+                                let owner_name = msg.from.map(|u| u.full_name()).unwrap_or_else(|| "Unknown".to_string());
+                                match self.create_new_pig(chat_id, user_id, &owner_name, &new_name, db).await {
+                                    Ok(_) => {
+                                        bot.send_message(msg.chat.id,
+                                            format!("Создана новая свинья с именем '{}'! 🐷", new_name))
+                                            .reply_to(msg.id)
+                                            .await?;
+                                    }
+                                    Err(e) => {
+                                        log::error!("Failed to create pig: {}", e);
+                                        bot.send_message(msg.chat.id, "Ошибка при создании свиньи")
+                                            .reply_to(msg.id)
+                                            .await?;
+                                    }
+                                }
+                            }
+                            Err(e) => {
+                                log::error!("Database error: {}", e);
+                                bot.send_message(msg.chat.id, "Какая-то хуйня случилась. Пиши админу, блять").await?;
+                            }
                         }
                     }
                 }
