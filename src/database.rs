@@ -1,6 +1,6 @@
+use serde::{Deserialize, Serialize};
 use sqlx::PgPool;
 use uuid::Uuid;
-use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 pub struct Pig {
@@ -63,7 +63,7 @@ impl Database {
             "SELECT id, chat_id, user_id, weight, name, last_feed, last_salo, owner_name, 
              salo, poisoned, barn, pigsty, vetclinic, vet_last_pickup, last_weight,
              avatar_url, biolab, butchery, pills, factory, warehouse, institute 
-             FROM pigs WHERE chat_id = $1 AND user_id = $2"
+             FROM pigs WHERE chat_id = $1 AND user_id = $2",
         )
         .bind(chat_id)
         .bind(user_id)
@@ -143,11 +143,15 @@ impl Database {
     }
 
     // Loot operations
-    pub async fn get_user_loot(&self, chat_id: i64, user_id: i64) -> Result<Vec<Loot>, sqlx::Error> {
+    pub async fn get_user_loot(
+        &self,
+        chat_id: i64,
+        user_id: i64,
+    ) -> Result<Vec<Loot>, sqlx::Error> {
         sqlx::query_as::<_, Loot>(
             "SELECT id, chat_id, owner, name, icon, description, class_name, class_icon,
                     weight, base_stats, rarity, uuid 
-             FROM loot WHERE chat_id = $1 AND owner = $2"
+             FROM loot WHERE chat_id = $1 AND owner = $2",
         )
         .bind(chat_id)
         .bind(user_id)
@@ -161,7 +165,7 @@ impl Database {
                               weight, base_stats, rarity, uuid)
              VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
              RETURNING id, chat_id, owner, name, icon, description, class_name, class_icon,
-                       weight, base_stats, rarity, uuid"
+                       weight, base_stats, rarity, uuid",
         )
         .bind(loot.chat_id)
         .bind(loot.owner)
@@ -178,13 +182,17 @@ impl Database {
         .await
     }
 
-    pub async fn find_pig_by_name(&self, chat_id: i64, name: &str) -> Result<Vec<Pig>, sqlx::Error> {
+    pub async fn find_pig_by_name(
+        &self,
+        chat_id: i64,
+        name: &str,
+    ) -> Result<Vec<Pig>, sqlx::Error> {
         let search_pattern = format!("%{}%", name);
         sqlx::query_as::<_, Pig>(
             "SELECT id, chat_id, user_id, weight, name, last_feed, last_salo, owner_name, 
                     salo, poisoned, barn, pigsty, vetclinic, vet_last_pickup, last_weight,
                     avatar_url, biolab, butchery, pills, factory, warehouse, institute 
-             FROM pigs WHERE chat_id = $1 AND name ILIKE $2"
+             FROM pigs WHERE chat_id = $1 AND name ILIKE $2",
         )
         .bind(chat_id)
         .bind(search_pattern)

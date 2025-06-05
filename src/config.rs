@@ -32,13 +32,13 @@ pub struct Config {
 
 impl Config {
     pub fn load() -> Result<Self, Box<dyn std::error::Error>> {
-        let config_content = fs::read_to_string("config.yaml")
-            .or_else(|_| fs::read_to_string("config.yml"))?;
-        
+        let config_content =
+            fs::read_to_string("config.yaml").or_else(|_| fs::read_to_string("config.yml"))?;
+
         let config: Config = serde_yaml::from_str(&config_content)?;
         Ok(config)
     }
-    
+
     pub fn load_or_default() -> Self {
         Self::load().unwrap_or_else(|e| {
             log::warn!("Failed to load config: {}, using defaults", e);
