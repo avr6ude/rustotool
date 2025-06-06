@@ -42,7 +42,9 @@ async fn main() {
     let token = std::env::var("TELEGRAM_TOKEN").expect("TELEGRAM_TOKEN not set");
     let bot = Bot::new(token);
 
-    let handler = Update::filter_message().endpoint(handle_message);
+    let handler = dptree::entry()
+        .branch(Update::filter_message().endpoint(handle_message))
+        .branch(Update::filter_callback_query().endpoint(handle_callback_query));
 
     Dispatcher::builder(bot, handler)
         .dependencies(dptree::deps![module_manager, db, config])
@@ -94,5 +96,21 @@ async fn handle_message(
     }
 
     module_manager.handle_message(bot, msg, &db, &config).await?;
+    Ok(())
+}
+
+async fn handle_callback_query(
+    bot: Bot,
+    query: CallbackQuery,
+    module_manager: Arc<ModuleManager>,
+    db: Arc<Database>,
+    config: Arc<Config>,
+) -> ResponseResult<()> {
+    log::info!("Received callback query: {:?}", query.data);
+
+    module_manager
+        .handle_callback_query(bot, query, &db, &config)
+        .await?;
+
     Ok(())
 }

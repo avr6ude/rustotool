@@ -57,8 +57,9 @@ impl Database {
     pub async fn migrate(&self) -> Result<(), sqlx::migrate::MigrateError> {
         sqlx::migrate!("./migrations").run(&self.pool).await
     }
+
     pub async fn get_chat_pigs_ranked(&self, chat_id: i64) -> Result<Vec<Pig>, sqlx::Error> {
-        sqlx::query_as::<_, Pig>(
+        let result = sqlx::query_as::<_, Pig>(
             "SELECT id, chat_id, user_id, weight, name, last_feed, last_salo, owner_name,
              salo, poisoned, barn, pigsty, vetclinic, vet_last_pickup, last_weight,
              avatar_url, biolab, butchery, pills, factory, warehouse, institute
@@ -66,7 +67,10 @@ impl Database {
         )
         .bind(chat_id)
         .fetch_all(&self.pool)
-        .await
+        .await?;
+
+        Ok(result)
+
     }
 
     pub async fn get_chat_total_players(&self, chat_id: i64) -> Result<i32, sqlx::Error> {
@@ -174,6 +178,20 @@ impl Database {
         .bind(pig.factory)
         .bind(pig.warehouse)
         .bind(pig.institute)
+        .fetch_one(&self.pool)
+        .await
+    }
+
+    pub async fn update_pig_name(&self, chat_id: i64, user_id: i64, new_name: &str) -> Result<Pig, sqlx::Error> {
+        sqlx::query_as::<_, Pig>(
+            "UPDATE pigs SET name = $1 WHERE chat_id = $2 AND user_id = $3
+            RETURNING id, chat_id, user_id, weight, name, last_feed, last_salo, owner_name,
+            salo, poisoned, barn, pigsty, vetclinic, vet_last_pickup, last_weight,
+            avatar_url, biolab, butchery, pills, factory, warehouse, institute",
+        )
+        .bind(new_name)
+        .bind(chat_id)
+        .bind(user_id)
         .fetch_one(&self.pool)
         .await
     }

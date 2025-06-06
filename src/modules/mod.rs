@@ -26,6 +26,16 @@ pub trait BotModule: Send + Sync {
     ) -> ResponseResult<bool> {
         Ok(false)
     }
+    async fn handle_callback_query(
+        &self,
+        _bot: Bot,
+        _query: CallbackQuery,
+        _db: &Database,
+        _config: &Config,
+    ) -> ResponseResult<()> {
+        // Default implementation - do nothing
+        Ok(())
+    }
 }
 
 pub struct ModuleManager {
@@ -75,6 +85,19 @@ impl ModuleManager {
             if module.handle_message(bot.clone(), msg.clone(), db, config).await? {
                 break; // Stop at first module that handles the message
             }
+        }
+        Ok(())
+    }
+
+    pub async fn handle_callback_query(
+        &self,
+        bot: Bot,
+        query: CallbackQuery,
+        db: &Database,
+        config: &Config
+    ) -> ResponseResult<()> {
+        for module in self.modules.values() {
+            module.handle_callback_query(bot.clone(), query.clone(), db, config).await?;
         }
         Ok(())
     }

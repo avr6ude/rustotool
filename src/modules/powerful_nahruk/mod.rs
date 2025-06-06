@@ -1,8 +1,10 @@
 use crate::config::Config;
 use crate::database::Database;
 use crate::modules::BotModule;
+
 use async_trait::async_trait;
 use teloxide::{prelude::*, sugar::request::RequestReplyExt, types::Message};
+
 
 pub struct PowerfulNahrukModule;
 
@@ -43,7 +45,7 @@ impl BotModule for PowerfulNahrukModule {
     return Ok(());
   }
 
-  async fn handle_message(&self, bot: Bot, msg: Message, _db: &Database, _config: &Config,) -> ResponseResult<bool> {
+  async fn handle_message(&self, bot: Bot, msg: Message, _db: &Database, _config: &Config) -> ResponseResult<bool> {
     let nahruk = self.check_nahruk(&msg.text().unwrap_or("")).await;
     if !nahruk.is_empty() {
       bot
