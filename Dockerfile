@@ -11,7 +11,7 @@ RUN apk add --no-cache \
 RUN rustup target add x86_64-unknown-linux-musl
 
 COPY Cargo.toml Cargo.lock ./
-COPY config.yaml ./
+COPY config.* ./
 COPY migrations ./migrations
 COPY src src
 
