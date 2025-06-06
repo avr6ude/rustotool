@@ -27,7 +27,7 @@ USER appuser
 WORKDIR /home/appuser
 
 # Copy binary from build stage
-COPY --from=builder /app/target/release/rustotool /usr/local/bin/rustotool
+COPY --from=builder /app/target/release/utotool-rust /usr/local/bin/utotool-rust
 
 # Copy config file if needed
 COPY --from=builder /app/config.yaml ./config.yaml
