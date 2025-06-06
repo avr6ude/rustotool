@@ -54,7 +54,7 @@ A modular Telegram bot built with Rust, featuring a pig farming game and extensi
     BASE_PILLS_CHANCE: 0.33
     BASE_PILLS_CHANCE_GROW: 0.75
 
-  database_url: ${database_url}
+  database_url: ${DATABASE_URL}
 ```
 5. **Start the bot**
 ```bash

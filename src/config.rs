@@ -63,7 +63,7 @@ impl Config {
                     base_pills_chance: 0.33,
                     base_pills_chance_grow: 0.75,
                 },
-                database_url: std::env::var("database_url").ok(),
+                database_url: std::env::var("DATABASE_URL").ok(),
             }
         })
     }
