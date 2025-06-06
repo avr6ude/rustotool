@@ -1,5 +1,5 @@
 # Stage 1: Build the Rust application
-FROM rust:1.75 as builder
+FROM rust:latest as builder
 
 # Set work directory
 WORKDIR /app
